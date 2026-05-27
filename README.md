@@ -15,12 +15,14 @@ my home network and realizing I had no way of knowing when new devices connected
 - 🔔 Cross-platform desktop notifications (macOS, Windows, Linux)
 - 🏭 Automatic MAC vendor lookup to identify device manufacturers
 - 🧑‍💻 Interactive mode to review and name unknown devices on the spot
-- ⛳ Flags unrecognized devices to a separate log for review
+- 🚩 Flags unrecognized devices to a separate log for review
 - 📝 Logs all scan activity with timestamps
 - ⏰ Runs automatically in the background on a configurable schedule
 - 🛠️ Setup wizard that works on any OS
 - 🌐 Web dashboard to monitor and manage your network from a browser
 - ⚙️ Dashboard settings to control scheduler, scan interval, and notifications
+- 💾 Scan results persist across page navigation
+- 🔒 Session expires on server restart requiring password re-entry
 
 ---
 
@@ -251,9 +253,11 @@ wifi-sentinel/
 - [x] Cross-platform support (macOS, Windows, Linux)
 - [x] MAC vendor lookup
 - [x] Interactive whitelist management
-- [x] Flagged devices log
+- [x] Flagged devices log with repeat offender tracking
 - [x] Web dashboard with live network, history, and flagged devices
 - [x] Dashboard settings with scheduler controls and notification toggle
+- [x] Scan results persistence across navigation
+- [x] Session security
 - [ ] Auto-launch on startup
 - [ ] Email alerts via Gmail SMTP
 
