@@ -5,7 +5,7 @@
 </div>
 
 {% if devices %}
-<button onclick="clearFlagged()" class="btn-danger">Clear All Flagged</button>
+<button onclick="clearFlagged()" class="btn-danger">Clear All</button>
 
 <table>
   <thead>
@@ -13,16 +13,47 @@
       <th>IP Address</th>
       <th>MAC Address</th>
       <th>Vendor</th>
-      <th>Flagged At</th>
+      <th>Times Flagged</th>
+      <th>Last Flagged</th>
+      <th>Actions</th>
     </tr>
   </thead>
-  <tbody>
+  <tbody id="flagged-table">
     {% for mac, info in devices.items() %}
-    <tr>
+    <tr
+      id="flagged-{{ mac | replace(':', '-') }}"
+      class="{{ 'repeat-offender' if info.flag_count and info.flag_count > 1 else '' }}"
+    >
       <td>{{ info.ip }}</td>
       <td>{{ mac }}</td>
-      <td>{{ info.vendor }}</td>
+      <td class="vendor-cell-{{ mac | replace(':', '-') }}">
+        {{ info.vendor }}
+      </td>
+      <td>
+        <span
+          class="{{ 'badge-danger' if info.flag_count and info.flag_count > 1 else 'badge-neutral' }}"
+        >
+          {{ info.flag_count if info.flag_count else 1 }}x
+        </span>
+      </td>
       <td>{{ info.flagged_at }}</td>
+      <td class="actions">
+        <button
+          onclick="addToWhitelist('{{ mac }}')"
+          class="btn-small btn-primary"
+        >
+          ✅ Whitelist
+        </button>
+        <button onclick="retryLookup('{{ mac }}')" class="btn-small">
+          🔍 Lookup
+        </button>
+        <button
+          onclick="dismissDevice('{{ mac }}')"
+          class="btn-small btn-danger"
+        >
+          🗑️ Dismiss
+        </button>
+      </td>
     </tr>
     {% endfor %}
   </tbody>
@@ -32,7 +63,100 @@
 <p class="empty-state">No flagged devices. Your network looks clean!</p>
 {% endif %}
 
+<!-- Whitelist Modal -->
+<div id="whitelist-modal" class="modal hidden">
+  <div class="modal-content">
+    <h3>✅ Add to Whitelist</h3>
+    <input type="hidden" id="modal-mac" />
+    <label>Vendor</label>
+    <input type="text" id="modal-vendor" placeholder="Vendor name" />
+    <label>Device Name</label>
+    <input type="text" id="modal-device-name" placeholder="Device name" />
+    <div class="modal-actions">
+      <button onclick="confirmWhitelist()" class="btn-primary">
+        Add to Whitelist
+      </button>
+      <button onclick="closeModal()" class="btn-secondary">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script>
+  function addToWhitelist(mac) {
+    const safeMac = mac.replace(/:/g, "-");
+    const vendor = document
+      .querySelector(".vendor-cell-" + safeMac)
+      .textContent.trim();
+    document.getElementById("modal-mac").value = mac;
+    document.getElementById("modal-vendor").value = vendor;
+    document.getElementById("modal-device-name").value = "";
+    document.getElementById("whitelist-modal").classList.remove("hidden");
+  }
+
+  function closeModal() {
+    document.getElementById("whitelist-modal").classList.add("hidden");
+  }
+
+  function confirmWhitelist() {
+    const mac = document.getElementById("modal-mac").value;
+    const vendor = document.getElementById("modal-vendor").value;
+    const device_name = document.getElementById("modal-device-name").value;
+
+    fetch("/api/flagged/whitelist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mac, vendor, device_name }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.status === "success") {
+          closeModal();
+          const row = document.getElementById(
+            "flagged-" + mac.replace(/:/g, "-"),
+          );
+          row.innerHTML = `<td colspan="6" style="color: var(--success)">✅ Added to whitelist!</td>`;
+          setTimeout(() => row.remove(), 2000);
+        }
+      });
+  }
+
+  function retryLookup(mac) {
+    const safeMac = mac.replace(/:/g, "-");
+    const vendorCell = document.querySelector(".vendor-cell-" + safeMac);
+    vendorCell.textContent = "Looking up...";
+
+    fetch("/api/flagged/lookup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mac }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        vendorCell.textContent =
+          data.status === "success" ? data.vendor : "Unknown";
+      });
+  }
+
+  function dismissDevice(mac) {
+    if (confirm("Remove this device from flagged?")) {
+      fetch("/api/flagged/dismiss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mac }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.status === "success") {
+            const row = document.getElementById(
+              "flagged-" + mac.replace(/:/g, "-"),
+            );
+            row.innerHTML = `<td colspan="6" style="color: var(--text-secondary)">Dismissed</td>`;
+            setTimeout(() => row.remove(), 1500);
+          }
+        });
+    }
+  }
+
   function clearFlagged() {
     if (confirm("Clear all flagged devices?")) {
       fetch("/api/flagged/clear", { method: "POST" })

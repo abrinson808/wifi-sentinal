@@ -99,7 +99,7 @@
 </div>
 
 <!-- Scan Results -->
-<div id="scan-results" class="hidden">
+<div id="scan-results" class="{{ '' if last_scan_results else 'hidden' }}">
   <h3>⚠️ Unknown Devices Found</h3>
   <table>
     <thead>
@@ -111,11 +111,70 @@
         <th>Actions</th>
       </tr>
     </thead>
-    <tbody id="results-table"></tbody>
+    <tbody id="results-table">
+      {% for device in last_scan_results %}
+      <tr id="result-{{ device.mac | replace(':', '-') }}">
+        <td>{{ device.ip }}</td>
+        <td>{{ device.mac }}</td>
+        <td>
+          <input
+            type="text"
+            value="{{ device.vendor }}"
+            id="vendor-{{ device.mac | replace(':', '-') }}"
+          />
+        </td>
+        <td>
+          <input
+            type="text"
+            placeholder="Device name"
+            id="name-{{ device.mac | replace(':', '-') }}"
+          />
+        </td>
+        <td class="actions">
+          <button
+            onclick="addToWhitelist('{{ device.mac }}', '{{ device.ip }}', '{{ device.hostname }}')"
+            class="btn-small btn-primary"
+            title="Add to Whitelist"
+          >
+            ✅
+          </button>
+          <button
+            onclick="flagResult('{{ device.mac }}', '{{ device.ip }}', '{{ device.vendor }}')"
+            class="btn-small btn-warn"
+            title="Flag Device"
+          >
+            🚩
+          </button>
+          <button
+            onclick="lookupResult('{{ device.mac }}')"
+            class="btn-small"
+            title="Lookup Vendor"
+          >
+            🔍
+          </button>
+          <button
+            onclick="dismissResult('{{ device.mac }}')"
+            class="btn-small btn-danger"
+            title="Dismiss"
+          >
+            🏳️
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
   </table>
 </div>
 
 <script>
+  function clearResultsIfEmpty() {
+    const remaining = document.querySelectorAll("#results-table tr").length;
+    if (remaining === 0) {
+      fetch("/api/scan/clear-results", { method: "POST" });
+      document.getElementById("scan-results").classList.add("hidden");
+    }
+  }
+
   function triggerScan() {
     const btn = document.getElementById("scan-btn");
     const bar = document.getElementById("progress-bar");
@@ -187,19 +246,70 @@
       const row = document.createElement("tr");
       row.id = "result-" + device.mac.replace(/:/g, "-");
       row.innerHTML = `
-      <td>${device.ip}</td>
-      <td>${device.mac}</td>
-      <td><input type="text" value="${device.vendor}" id="vendor-${device.mac.replace(/:/g, "-")}"></td>
-      <td><input type="text" placeholder="Device name" id="name-${device.mac.replace(/:/g, "-")}"></td>
-      <td>
-        <button onclick="addToWhitelist('${device.mac}', '${device.ip}', '${device.hostname}')"
-          class="btn-small btn-primary">Add to Whitelist</button>
-      </td>
-    `;
+        <td>${device.ip}</td>
+        <td>${device.mac}</td>
+        <td><input type="text" value="${device.vendor}" id="vendor-${device.mac.replace(/:/g, "-")}"></td>
+        <td><input type="text" placeholder="Device name" id="name-${device.mac.replace(/:/g, "-")}"></td>
+        <td class="actions">
+          <button onclick="addToWhitelist('${device.mac}', '${device.ip}', '${device.hostname}')"
+            class="btn-small btn-primary" title="Add to Whitelist">✅</button>
+          <button onclick="flagResult('${device.mac}', '${device.ip}', '${device.vendor}')"
+            class="btn-small btn-warn" title="Flag Device">🚩</button>
+          <button onclick="lookupResult('${device.mac}')"
+            class="btn-small" title="Lookup Vendor">🔍</button>
+          <button onclick="dismissResult('${device.mac}')"
+            class="btn-small btn-danger" title="Dismiss">🏳️</button>
+        </td>
+      `;
       tbody.appendChild(row);
     });
 
     results.classList.remove("hidden");
+  }
+
+  function flagResult(mac, ip, vendor) {
+    fetch("/api/whitelist/flag-new", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mac, ip, vendor }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.status === "success") {
+          const row = document.getElementById(
+            "result-" + mac.replace(/:/g, "-"),
+          );
+          row.innerHTML = `<td colspan="5" style="color: var(--warning)">⛳ ${mac} flagged</td>`;
+          setTimeout(() => row.remove(), 2000);
+        }
+      });
+  }
+
+  function lookupResult(mac) {
+    const safeMac = mac.replace(/:/g, "-");
+    const vendorInput = document.getElementById("vendor-" + safeMac);
+    vendorInput.value = "Looking up...";
+    vendorInput.disabled = true;
+
+    fetch("/api/flagged/lookup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mac }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        vendorInput.disabled = false;
+        vendorInput.value = data.status === "success" ? data.vendor : "Unknown";
+      });
+  }
+
+  function dismissResult(mac) {
+    const row = document.getElementById("result-" + mac.replace(/:/g, "-"));
+    row.innerHTML = `<td colspan="5" style="color: var(--text-secondary)">Dismissed</td>`;
+    setTimeout(() => {
+      row.remove();
+      clearResultsIfEmpty();
+    }, 1500);
   }
 
   function addToWhitelist(mac, ip, hostname) {
@@ -218,7 +328,10 @@
           // Update results row
           const row = document.getElementById("result-" + safeMac);
           row.innerHTML = `<td colspan="5" style="color: var(--success)">✅ ${vendor || mac} added to whitelist!</td>`;
-          setTimeout(() => row.remove(), 2000);
+          setTimeout(() => {
+            row.remove();
+            clearResultsIfEmpty();
+          }, 2000);
 
           // Add to network table immediately
           const tbody = document.getElementById("device-table");

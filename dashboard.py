@@ -16,13 +16,14 @@ from config import (
 
 app = Flask(__name__)
 app.secret_key = DASHBOARD_SECRET_KEY
+from datetime import timedelta
+app.permanent_session_lifetime = timedelta(hours=8)
 
 scheduler_process = None
 scheduler_running = False
 
 scan_in_progress = False
 scan_results_cache = []
-
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,7 @@ def login():
     error = None
     if request.method == "POST":
         if request.form.get("password") == DASHBOARD_PASSWORD:
+            session.permanent = False
             session["logged_in"] = True
             return redirect(url_for("network"))
         error = "Incorrect password"
@@ -59,6 +61,9 @@ def logout():
 @login_required
 def network():
     whitelist = load_json(WHITELIST_FILE)
+    last_scan_results = load_json("last_scan_results.json")
+    if isinstance(last_scan_results, dict):
+        last_scan_results = list(last_scan_results.values())
     last_scan = "Never"
     if os.path.exists(LOG_FILE):
         with open(LOG_FILE, "r") as f:
@@ -70,7 +75,8 @@ def network():
     return render_template("network.html",
         devices=whitelist,
         scheduler_running=scheduler_running,
-        last_scan=last_scan
+        last_scan=last_scan,
+        last_scan_results=last_scan_results
     )
 
 
@@ -163,6 +169,7 @@ def run_scan_thread():
                     log_event(f"Scan complete. {len(devices)} device(s) found. All trusted.")
 
                 scan_results_cache = unknown
+                save_json("last_scan_results.json", unknown)
                 break
 
     except Exception as e:
@@ -183,6 +190,11 @@ def scan_status():
         "unknown": scan_results_cache
     })
 
+@app.route("/api/scan/clear-results", methods=["POST"])
+@login_required
+def clear_scan_results():
+    save_json("last_scan_results.json", [])
+    return jsonify({"status": "success"})
 
 @app.route("/api/scheduler/start", methods=["POST"])
 @login_required
@@ -274,6 +286,17 @@ def flag_from_whitelist():
         return jsonify({"status": "success"})
     return jsonify({"status": "error", "message": "Device not found"})
 
+@app.route("/api/whitelist/flag-new", methods=["POST"])
+@login_required
+def flag_new_device():
+    """Flag a device directly from scan results"""
+    mac = request.json.get("mac")
+    ip = request.json.get("ip", "Unknown")
+    vendor = request.json.get("vendor", "Unknown")
+    from scanner import flag_device, log_event
+    flag_device(mac, {"ip": ip, "vendor": vendor, "hostname": "Unknown"})
+    return jsonify({"status": "success"})
+
 @app.route("/api/whitelist/add", methods=["POST"])
 @login_required
 def add_to_whitelist():
@@ -302,6 +325,58 @@ def clear_flagged():
     """Clear all flagged devices"""
     save_json("flagged_devices.json", {})
     return jsonify({"status": "success"})
+
+@app.route("/api/flagged/dismiss", methods=["POST"])
+@login_required
+def dismiss_flagged():
+    """Remove a single device from flagged list"""
+    mac = request.json.get("mac")
+    flagged = load_json("flagged_devices.json")
+    if mac in flagged:
+        del flagged[mac]
+        save_json("flagged_devices.json", flagged)
+        from scanner import log_event
+        log_event(f"Flagged device dismissed: {mac}")
+        return jsonify({"status": "success"})
+    return jsonify({"status": "error", "message": "Device not found"})
+
+
+@app.route("/api/flagged/whitelist", methods=["POST"])
+@login_required
+def flagged_to_whitelist():
+    """Move a device from flagged to whitelist"""
+    mac = request.json.get("mac")
+    vendor = request.json.get("vendor", "Unknown")
+    device_name = request.json.get("device_name", "")
+    flagged = load_json("flagged_devices.json")
+    if mac in flagged:
+        info = flagged[mac]
+        info["vendor"] = vendor
+        info["device_name"] = device_name
+        info["last_seen"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        whitelist = load_json(WHITELIST_FILE)
+        whitelist[mac] = info
+        save_json(WHITELIST_FILE, whitelist)
+        del flagged[mac]
+        save_json("flagged_devices.json", flagged)
+        from scanner import log_event
+        log_event(f"Device moved from flagged to whitelist: {mac} | {info.get('ip')} | {vendor} | {device_name}")
+        return jsonify({"status": "success"})
+    return jsonify({"status": "error", "message": "Device not found"})
+
+
+@app.route("/api/flagged/lookup", methods=["POST"])
+@login_required
+def retry_vendor_lookup():
+    """Retry vendor lookup for any MAC address"""
+    mac = request.json.get("mac")
+    from scanner import lookup_vendor
+    vendor = lookup_vendor(mac)
+    flagged = load_json("flagged_devices.json")
+    if mac in flagged:
+        flagged[mac]["vendor"] = vendor
+        save_json("flagged_devices.json", flagged)
+    return jsonify({"status": "success", "vendor": vendor})
 
 @app.route("/api/notifications/toggle", methods=["POST"])
 @login_required

@@ -462,6 +462,7 @@ tr:hover td {
 .hidden {
   display: none !important;
 }
+
 /* ── Toggle Switch ───────────────────────────────────────────────────────── */
 .toggle-row {
   display: flex;
@@ -511,4 +512,26 @@ input:checked + .toggle-slider {
 
 input:checked + .toggle-slider:before {
   transform: translateX(20px);
+}
+
+/* ── Flagged Devices ─────────────────────────────────────────────────────── */
+.repeat-offender td {
+  background: rgba(255, 69, 58, 0.08);
+}
+
+.badge-danger {
+  background: var(--danger);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-neutral {
+  background: var(--border);
+  color: var(--text);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
 }

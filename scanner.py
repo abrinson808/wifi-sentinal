@@ -56,18 +56,23 @@ def flag_device(mac, info):
             content = f.read().strip()
             flagged = json.loads(content) if content and content != "{}" else {}
 
+    # Track how many times this device has been flagged
+    existing = flagged.get(mac, {})
+    count = existing.get("flag_count", 0) + 1
+
     flagged[mac] = {
         "ip": info.get("ip", "Unknown"),
         "vendor": info.get("vendor", "Unknown"),
         "hostname": info.get("hostname", "Unknown"),
-        "flagged_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "flagged_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "flag_count": count
     }
 
     with open("flagged_devices.json", "w") as f:
         json.dump(flagged, f, indent=4)
 
-    log_event(f"🚩 Device flagged as unrecognized: {mac} | {info.get('ip')} | {info.get('vendor', 'Unknown')}")
-    print("  🚩 Flagged as unrecognized\n")
+    log_event(f"⛳ Device flagged as unrecognized: {mac} | {info.get('ip')} | {info.get('vendor', 'Unknown')} (seen {count} time(s))")
+    print("  ⛳ Flagged as unrecognized\n")
 
 
 def log_event(message):
