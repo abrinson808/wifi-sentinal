@@ -4,6 +4,10 @@ config.py
 scan_log.txt
 whitelist.json
 flagged_devices.json
+last_scan_results.json
+.dashboard.pid
+.scheduler.pid
+dashboard.log
 
 __pycache__/
 *.pyc

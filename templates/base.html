@@ -37,5 +37,19 @@
       </div>
     </nav>
     <main>{% block content %}{% endblock %}</main>
+    <script>
+      if (window.location.pathname !== "/login") {
+        setInterval(() => {
+          fetch("/api/heartbeat", { method: "POST" })
+            .then((r) => r.json())
+            .then((data) => {
+              if (data.status === "expired") {
+                window.location.href = "/login";
+              }
+            })
+            .catch(() => {});
+        }, 3000);
+      }
+    </script>
   </body>
 </html>

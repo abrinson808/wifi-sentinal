@@ -66,6 +66,33 @@
   <p class="feedback" id="notifications-feedback"></p>
 </div>
 
+<!-- Auto-launch Section -->
+<div class="settings-section">
+  <h3>🚀 Auto-launch on Login</h3>
+  <p>Start WiFi Sentinel automatically when you log in</p>
+
+  <div class="toggle-row">
+    <span>Enable Auto-launch</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="auto-launch-toggle"
+        {{ 'checked' if auto_launch else '' }}
+        onchange="toggleAutoLaunch(this.checked)">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row" style="margin-top: 12px">
+    <span>Start Scheduler on Login</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="auto-scheduler-toggle"
+        {{ 'checked' if auto_launch_scheduler else '' }}
+        onchange="toggleAutoScheduler(this.checked)">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <p class="feedback" id="startup-feedback"></p>
+</div>
+
 <script>
 function triggerScan() {
   const btn = document.getElementById("scan-btn");
@@ -222,5 +249,33 @@ function toggleNotifications(enabled) {
           : "⚠️ " + data.message;
     });
 }
+
+function toggleAutoLaunch(enabled) {
+  const endpoint = enabled ? "/api/startup/enable" : "/api/startup/disable";
+  fetch(endpoint, { method: "POST" })
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById("startup-feedback").textContent =
+  data.status === "success"
+    ? "Auto-launch " + (enabled ? "enabled" : "disabled")
+    : "Error: " + data.message;
+    });
+}
+
+function toggleAutoScheduler(enabled) {
+  fetch("/api/notifications/toggle", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key: "AUTO_LAUNCH_SCHEDULER", enabled: enabled })
+  })
+    .then(r => r.json())
+    .then(data => {
+     document.getElementById("startup-feedback").textContent =
+  data.status === "success"
+    ? "Scheduler auto-launch " + (enabled ? "enabled" : "disabled")
+    : "Error: " + data.message;
+    });
+}
+
 </script>
 {% endblock %}
