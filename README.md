@@ -15,14 +15,15 @@ my home network and realizing I had no way of knowing when new devices connected
 - 🔔 Cross-platform desktop notifications (macOS, Windows, Linux)
 - 🏭 Automatic MAC vendor lookup to identify device manufacturers
 - 🧑‍💻 Interactive mode to review and name unknown devices on the spot
-- 🚩 Flags unrecognized devices to a separate log for review
+- 🚩 Flags unrecognized devices with repeat offender tracking
 - 📝 Logs all scan activity with timestamps
 - ⏰ Runs automatically in the background on a configurable schedule
 - 🛠️ Setup wizard that works on any OS
-- 🌐 Web dashboard to monitor and manage your network from a browser
+- 🔐 Password protected web dashboard
 - ⚙️ Dashboard settings to control scheduler, scan interval, and notifications
 - 💾 Scan results persist across page navigation
-- 🔒 Session expires on server restart requiring password re-entry
+- 🔒 Session expires upon tab closure or disconnection
+- 🚀 Single command launch script for all platforms
 
 ---
 
@@ -125,34 +126,16 @@ ip addr
 **macOS/Linux:**
 
 ```bash
-# Manual scan
-sudo venv/bin/python scanner.py
-
-# Interactive mode (recommended)
-sudo venv/bin/python scanner.py --interactive
-
-# Run on a schedule
-sudo venv/bin/python scheduler.py
-
-# Launch the web dashboard (user friendly)
-venv/bin/python dashboard.py
+./start.sh
 ```
 
-**Windows (Command Prompt as Administrator):**
+**Windows:**
 
-```bash
-# Manual scan
-venv\Scripts\python scanner.py
-
-# Interactive mode (recommended)
-venv\Scripts\python scanner.py --interactive
-
-# Run on a schedule
-venv\Scripts\python scheduler.py
-
-# Launch the web dashboard (user friendly)
-venv\Scripts\python dashboard.py
+```batch
+start.bat
 ```
+
+This will start the dashboard, open your browser automatically, and start the scheduler if enabled in settings.
 
 Then open your browser and go to:
 
@@ -230,17 +213,20 @@ wifi-sentinel/
 ├── scheduler.py            # automatic scheduling
 ├── dashboard.py            # Flask web dashboard
 ├── setup.py                # first-run setup wizard
+├── start.sh                # macOS/Linux launch script
+├── start.bat               # Windows launch script
 ├── templates/              # HTML templates for dashboard
-│   ├── base.html           # shared nav and layout
+│   ├── base.html           # shared nav, layout, and session heartbeat
 │   ├── login.html          # password login page
 │   ├── network.html        # live network and scan controls
-│   ├── history.html        # scan history log
-│   ├── flagged.html        # flagged devices
-│   └── settings.html       # scheduler, notifications, manual scan
-├── static/css/style.css    # dashboard stylesheet
+│   ├── history.html        # color coded scan history log
+│   ├── flagged.html        # flagged devices with actions
+│   └── settings.html       # scheduler, notifications, auto-launch
+├── static/css/style.css    # dashboard stylesheet with dark/light mode
 ├── whitelist.json          # trusted devices (gitignored)
 ├── flagged_devices.json    # unrecognized devices log (gitignored)
 ├── scan_log.txt            # scan history (gitignored)
+├── last_scan_results.json  # last scan results (gitignored)
 ├── config.py               # your settings (gitignored)
 ├── config.example.py       # safe template for config
 └── README.md
@@ -257,8 +243,8 @@ wifi-sentinel/
 - [x] Web dashboard with live network, history, and flagged devices
 - [x] Dashboard settings with scheduler controls and notification toggle
 - [x] Scan results persistence across navigation
-- [x] Session security
-- [ ] Auto-launch on startup
+- [x] Session security with heartbeat expiry
+- [x] Single command launch script
 - [ ] Email alerts via Gmail SMTP
 
 ---
