@@ -53,7 +53,7 @@ def _session_cleanup():
         now = datetime.now()
         with _sessions_lock:
             expired = [sid for sid, ts in _active_sessions.items()
-                       if (now - ts).total_seconds() > 5]
+                       if (now - ts).total_seconds() > 3]
             for sid in expired:
                 del _active_sessions[sid]
 
