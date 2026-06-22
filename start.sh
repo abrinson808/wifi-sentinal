@@ -40,7 +40,11 @@ sleep 2
 
 # Open browser automatically
 echo "🔗 Opening browser..."
-open http://localhost:$PORT
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  open http://localhost:$PORT
+else
+  xdg-open http://localhost:$PORT 2>/dev/null || true
+fi
 
 echo ""
 echo "✅ WiFi Sentinel is running!"

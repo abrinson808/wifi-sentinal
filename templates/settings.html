@@ -66,6 +66,60 @@
   <p class="feedback" id="notifications-feedback"></p>
 </div>
 
+<!-- Stealth Mode Section -->
+<div class="settings-section">
+  <h3>👁️‍🗨️ Stealth Mode</h3>
+  <p>Reduce scan detectability on foreign networks</p>
+
+  <div class="toggle-row">
+    <span>Enable Stealth Mode</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="stealth-toggle"
+        {{ 'checked' if stealth_mode else '' }}
+        onchange="toggleStealthSettings(this.checked)">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <div class="stealth-options" id="stealth-options"
+    style="{{ '' if stealth_mode else 'opacity: 0.4; pointer-events: none;' }}">
+
+    <div style="margin-top: 16px;">
+      <label style="font-size: 12px; color: var(--text-secondary);">SCAN TIMING</label>
+      <div style="display: flex; gap: 12px; margin-top: 8px;">
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 14px;">
+          <input type="radio" name="timing" value="T1"
+            {{ 'checked' if stealth_timing == 'T1' else '' }}
+            onchange="saveStealthSettings()">
+          T1 — Paranoid (slowest, most stealthy)
+        </label>
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 14px;">
+          <input type="radio" name="timing" value="T2"
+            {{ 'checked' if stealth_timing == 'T2' else '' }}
+            onchange="saveStealthSettings()">
+          T2 — Sneaky (slow, good balance)
+        </label>
+      </div>
+    </div>
+
+    <div style="margin-top: 16px;">
+      <label style="font-size: 12px; color: var(--text-secondary);">FAKE HOSTNAME</label>
+      <div style="display: flex; gap: 12px; margin-top: 8px; align-items: center;">
+        <input type="text" id="stealth-hostname"
+          value="{{ stealth_hostname }}"
+          placeholder="Leave blank for random hostname"
+          style="flex: 1; background: var(--bg); border: 1px solid var(--border);
+                 border-radius: 6px; padding: 8px 12px; color: var(--text); font-size: 14px;">
+        <button onclick="saveStealthSettings()" class="btn-primary">Save</button>
+      </div>
+      <p style="font-size: 12px; color: var(--text-secondary); margin-top: 6px;">
+        Leave blank to use a randomly generated hostname each scan
+      </p>
+    </div>
+  </div>
+  <p class="feedback" id="stealth-feedback"></p>
+</div>
+
 <!-- Auto-launch Section -->
 <div class="settings-section">
   <h3>🚀 Auto-launch on Login</h3>
@@ -102,6 +156,14 @@ function triggerScan() {
   const results = document.getElementById("scan-results");
 
   btn.disabled = true;
+  // Warn if stealth mode is active
+  fetch("/api/stealth/status")
+    .then(r => r.json())
+    .then(data => {
+      if (data.stealth) {
+        feedback.textContent = "👁️‍🗨️ Stealth scan in progress — this may take 10-30 minutes...";
+      }
+    });
   btn.textContent = "Scanning...";
   bar.classList.remove("hidden");
   fill.style.width = "0%";
@@ -274,6 +336,46 @@ function toggleAutoScheduler(enabled) {
   data.status === "success"
     ? "Scheduler auto-launch " + (enabled ? "enabled" : "disabled")
     : "Error: " + data.message;
+    });
+}
+
+function toggleStealthSettings(enabled) {
+  const options = document.getElementById("stealth-options");
+  options.style.opacity = enabled ? "1" : "0.4";
+  options.style.pointerEvents = enabled ? "auto" : "none";
+
+  fetch("/api/stealth/toggle", { method: "POST" })
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === "success") {
+        // Sync with nav button
+        applyStealthUI(data.stealth);
+        // Sync the toggle switch to match actual state
+        document.getElementById("stealth-toggle").checked = data.stealth;
+        document.getElementById("stealth-feedback").textContent =
+          "Stealth mode " + (data.stealth ? "enabled" : "disabled");
+      } else {
+        document.getElementById("stealth-feedback").textContent =
+          "Error: " + data.message;
+      }
+    });
+}
+
+function saveStealthSettings() {
+  const timing = document.querySelector('input[name="timing"]:checked').value;
+  const hostname = document.getElementById("stealth-hostname").value;
+
+  fetch("/api/stealth/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ timing, hostname })
+  })
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById("stealth-feedback").textContent =
+        data.status === "success"
+          ? "Stealth settings saved!"
+          : "Error: " + data.message;
     });
 }
 

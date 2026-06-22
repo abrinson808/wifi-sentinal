@@ -3,13 +3,14 @@
 import nmap
 import json
 import os
+import subprocess
 import time
 import urllib.request
 import platform
 import sys
 import argparse
 from datetime import datetime
-from config import NETWORK_RANGE, LOG_FILE, WHITELIST_FILE
+from config import NETWORK_RANGE, LOG_FILE, STEALTH_MODE, WHITELIST_FILE
 from notifier import alert_unknown_device
 
 def check_system():
@@ -106,11 +107,68 @@ def lookup_vendor(mac):
     except Exception:
         return "Unknown"
 
+def generate_random_hostname():
+    """Generate a convincing fake hostname"""
+    import random
+    prefixes = [
+        "Johns", "Sarah's", "Mike's", "Emily's", "David's",
+        "Jessica's", "Blake's", "Lauren's", "Matts", "Ashleys"
+    ]
+    suffixes = [
+        "iPhone", "MacBook", "iPad", "MacBook-Pro",
+        "Galaxy", "Pixel", "Surface", "Laptop"
+    ]
+    desktop = [
+        f"DESKTOP-{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=6))}",
+        f"LAPTOP-{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=6))}"
+    ]
+    style = random.choice(["apple", "windows"])
+    if style == "apple":
+        return f"{random.choice(prefixes)}-{random.choice(suffixes)}"
+    else:
+        return random.choice(desktop)
+
+
+def set_hostname(hostname):
+    """Temporarily change the Mac/Linux hostname for stealth scanning"""
+    try:
+        current = subprocess.run(
+            ["hostname"], capture_output=True, text=True
+        ).stdout.strip()
+        subprocess.run(["sudo", "hostname", hostname], check=True)
+        log_event(f"👁️‍🗨️ Stealth mode: hostname changed to {hostname}")
+        return current
+    except Exception as e:
+        log_event(f"⚠️ Could not change hostname: {e}")
+        return None
+
+
+def restore_hostname(original_hostname):
+    """Restore the original hostname after stealth scan"""
+    if original_hostname:
+        try:
+            subprocess.run(["sudo", "hostname", original_hostname], check=True)
+            log_event(f"👁️‍🗨️ Stealth mode: hostname restored to {original_hostname}")
+        except Exception as e:
+            log_event(f"⚠️ Could not restore hostname: {e}")
 
 def scan_network():
-    print(f"\n🔍 Scanning {NETWORK_RANGE} ...")
+    """Scan the network and return a dict of discovered devices"""
+    from config import STEALTH_MODE, STEALTH_TIMING, STEALTH_HOSTNAME
+    original_hostname = None
+
+    if STEALTH_MODE:
+        fake_hostname = STEALTH_HOSTNAME if STEALTH_HOSTNAME else generate_random_hostname()
+        original_hostname = set_hostname(fake_hostname)
+        timing = f"-{STEALTH_TIMING}"
+        print(f"\n👁️‍🗨️ Stealth scan using timing {timing} as '{fake_hostname}'...")
+        arguments = f"-sn {timing}"
+    else:
+        print(f"\n🔍 Scanning {NETWORK_RANGE} ...")
+        arguments = "-sn"
+
     nm = nmap.PortScanner()
-    nm.scan(hosts=NETWORK_RANGE, arguments="-sn")
+    nm.scan(hosts=NETWORK_RANGE, arguments=arguments)
 
     devices = {}
     for host in nm.all_hosts():
@@ -121,6 +179,9 @@ def scan_network():
             "hostname": hostname,
             "last_seen": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
+
+    if STEALTH_MODE and original_hostname:
+        restore_hostname(original_hostname)
 
     return devices
 
@@ -248,6 +309,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.interactive:
+        check_system()
         whitelist = load_whitelist()
         if not whitelist:
             build_whitelist_from_scan()
@@ -260,12 +322,12 @@ if __name__ == "__main__":
                     info["vendor"] = vendor
                     message = f"⚠️  UNKNOWN DEVICE — IP: {info['ip']} | MAC: {mac} | Vendor: {vendor} | Hostname: {info['hostname']}"
                     log_event(message)
-                alert_unknown_device(
-                    mac=mac,
-                    ip=info['ip'],
-                    hostname=info['hostname'],
-                    vendor=vendor
-                )
+                    alert_unknown_device(
+                        mac=mac,
+                        ip=info['ip'],
+                        hostname=info['hostname'],
+                        vendor=vendor
+                    )
                 interactive_review(unknown)
             else:
                 log_event(f"Scan complete. {len(devices)} device(s) found. All trusted.")

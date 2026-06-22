@@ -33,23 +33,70 @@
           class="{{ 'active' if request.endpoint == 'settings' }}"
           >Settings</a
         >
+        <button
+          id="stealth-btn"
+          class="stealth-btn"
+          onclick="toggleStealth()"
+          title="Toggle Stealth Mode (Ctrl+Shift+S)"
+        >
+          👁️‍🗨️ Stealth
+        </button>
         <a href="{{ url_for('logout') }}" class="logout">Logout</a>
       </div>
     </nav>
     <main>{% block content %}{% endblock %}</main>
     <script>
-      if (window.location.pathname !== "/login") {
-        setInterval(() => {
-          fetch("/api/heartbeat", { method: "POST" })
-            .then((r) => r.json())
-            .then((data) => {
-              if (data.status === "expired") {
-                window.location.href = "/login";
+      // ── Stealth Mode ────────────────────────────────────────────────────────
+      function toggleStealth() {
+        fetch("/api/stealth/toggle", { method: "POST" })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.status === "success") {
+              applyStealthUI(data.stealth);
+              const settingsToggle = document.getElementById("stealth-toggle");
+              if (settingsToggle) {
+                settingsToggle.checked = data.stealth;
+                const options = document.getElementById("stealth-options");
+                if (options) {
+                  options.style.opacity = data.stealth ? "1" : "0.4";
+                  options.style.pointerEvents = data.stealth ? "auto" : "none";
+                }
               }
-            })
-            .catch(() => {});
-        }, 3000);
+            }
+          });
       }
+
+      function applyStealthUI(active) {
+        const body = document.body;
+        const btn = document.getElementById("stealth-btn");
+        if (active) {
+          body.classList.add("stealth-mode");
+          btn.classList.add("active");
+          btn.textContent = "👁️‍🗨️ STEALTH ON";
+        } else {
+          body.classList.remove("stealth-mode");
+          btn.classList.remove("active");
+          btn.textContent = "👁️‍🗨️ Stealth";
+        }
+      }
+
+      // Check stealth state on every page load
+      if (window.location.pathname !== "/login") {
+        fetch("/api/stealth/status")
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.stealth) applyStealthUI(true);
+          })
+          .catch(() => {});
+      }
+
+      // Keyboard shortcut Ctrl+Shift+S
+      document.addEventListener("keydown", function (e) {
+        if (e.ctrlKey && e.shiftKey && e.key === "S") {
+          e.preventDefault();
+          toggleStealth();
+        }
+      });
     </script>
   </body>
 </html>

@@ -228,7 +228,7 @@ wifi-sentinel/
 ├── scan_log.txt            # scan history (gitignored)
 ├── last_scan_results.json  # last scan results (gitignored)
 ├── config.py               # your settings (gitignored)
-├── config.example.py       # safe template for config
+├── config-example.py       # safe template for config
 └── README.md
 ```
 

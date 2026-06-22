@@ -51,7 +51,7 @@ def check_nmap():
 def install_packages():
     """Install required Python packages"""
     print("\n📦 Installing required packages...")
-    packages = ["python-nmap", "twilio", "plyer", "schedule", "certifi"]
+    packages = ["python-nmap", "twilio", "plyer", "schedule", "certifi", "flask", "flask-session"]
 
     if OS == "Darwin":
         packages.append("pyobjus")
@@ -78,11 +78,11 @@ def setup_config():
         print("✅ config.py already exists — skipping")
         return
 
-    if not os.path.exists("config.example.py"):
-        print("❌ config.example.py not found. Make sure you cloned the full repo.")
+    if not os.path.exists("config-example.py"):
+        print("❌ config-example.py not found. Make sure you cloned the full repo.")
         sys.exit(1)
 
-    with open("config.example.py", "r") as f:
+    with open("config-example.py", "r") as f:
         content = f.read()
 
     # Auto-detect common network ranges by OS

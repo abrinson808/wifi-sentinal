@@ -535,3 +535,71 @@ input:checked + .toggle-slider:before {
   border-radius: 12px;
   font-size: 12px;
 }
+
+/* ── Stealth Mode ────────────────────────────────────────────────────────── */
+body.stealth-mode {
+  --accent: #00ff88;
+  --success: #00ff88;
+}
+
+body.stealth-mode nav {
+  border-bottom: 1px solid #00ff88;
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.3);
+}
+
+body.stealth-mode .nav-brand {
+  color: #00ff88;
+  text-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
+}
+
+body.stealth-mode .btn-primary {
+  background: #00ff88;
+  color: #1c1c1e;
+}
+
+body.stealth-mode table thead {
+  border-bottom: 1px solid #00ff88;
+}
+
+.stealth-badge {
+  background: #00ff88;
+  color: #1c1c1e;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+  0%,
+  100% {
+    box-shadow: 0 0 4px rgba(0, 255, 136, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(0, 255, 136, 0.8);
+  }
+}
+
+.stealth-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.stealth-btn.active {
+  border-color: #00ff88;
+  color: #00ff88;
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
+}
+
+.stealth-btn:hover {
+  border-color: #00ff88;
+  color: #00ff88;
+}

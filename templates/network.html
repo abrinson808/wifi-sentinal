@@ -183,6 +183,15 @@
     const results = document.getElementById("scan-results");
 
     btn.disabled = true;
+    // Warn if stealth mode is active
+    fetch("/api/stealth/status")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.stealth) {
+          feedback.textContent =
+            "👁️‍🗨️ Stealth scan in progress — this may take 10-30 minutes...";
+        }
+      });
     btn.textContent = "Scanning...";
     bar.classList.remove("hidden");
     fill.style.width = "0%";

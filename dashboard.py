@@ -9,6 +9,7 @@ import uuid
 import tempfile
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask_session import Session
 from config import (
     DASHBOARD_PASSWORD,
     DASHBOARD_SECRET_KEY,
@@ -19,7 +20,7 @@ from config import (
 
 app = Flask(__name__)
 
-# Generate a new token every server start — invalidates all existing sessions
+# ── Session config ────────────────────────────────────────────────────────────
 _token_file = os.path.join(tempfile.gettempdir(), "wifisentinel.token")
 _session_token = str(uuid.uuid4())
 with open(_token_file, "w") as _tf:
@@ -27,38 +28,22 @@ with open(_token_file, "w") as _tf:
 
 app.secret_key = DASHBOARD_SECRET_KEY + _session_token
 app.config.update(
-    SESSION_COOKIE_SECURE=False,
+    SESSION_TYPE="filesystem",
+    SESSION_FILE_DIR=os.path.join(tempfile.gettempdir(), "wifisentinel_sessions"),
+    SESSION_PERMANENT=False,
+    SESSION_USE_SIGNER=True,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_NAME="wifisentinel_session"
+    SESSION_COOKIE_NAME="wifisentinel_session",
+    PERMANENT_SESSION_LIFETIME=timedelta(minutes=15)
 )
 
-# Track active sessions via heartbeat {session_id: last_heartbeat_timestamp}
-_active_sessions = {}
-_sessions_lock = threading.Lock()
+Session(app)
 
 scheduler_process = None
 scheduler_running = False
 scan_in_progress = False
 scan_results_cache = []
-
-
-# ── Session cleanup thread ────────────────────────────────────────────────────
-
-def _session_cleanup():
-    """Background thread — expires sessions that haven't sent a heartbeat in 15 seconds"""
-    while True:
-        import time
-        time.sleep(5)
-        now = datetime.now()
-        with _sessions_lock:
-            expired = [sid for sid, ts in _active_sessions.items()
-                       if (now - ts).total_seconds() > 3]
-            for sid in expired:
-                del _active_sessions[sid]
-
-_cleanup_thread = threading.Thread(target=_session_cleanup, daemon=True)
-_cleanup_thread.start()
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -67,28 +52,16 @@ def login_required(f):
     from functools import wraps
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Check session exists
         if not session.get("logged_in"):
             return redirect(url_for("login"))
-
-        # Verify server token matches this instance
         try:
             with open(_token_file, "r") as tf:
-                current_token = tf.read().strip()
-            if session.get("server_token") != current_token:
-                session.clear()
-                return redirect(url_for("login"))
+                if session.get("server_token") != tf.read().strip():
+                    session.clear()
+                    return redirect(url_for("login"))
         except Exception:
             session.clear()
             return redirect(url_for("login"))
-
-        # Verify heartbeat is still active
-        sid = session.get("session_id")
-        with _sessions_lock:
-            if sid not in _active_sessions:
-                session.clear()
-                return redirect(url_for("login"))
-
         return f(*args, **kwargs)
     return decorated
 
@@ -98,12 +71,9 @@ def login():
     error = None
     if request.method == "POST":
         if request.form.get("password") == DASHBOARD_PASSWORD:
-            sid = str(uuid.uuid4())
             session["logged_in"] = True
             session["server_token"] = _session_token
-            session["session_id"] = sid
-            with _sessions_lock:
-                _active_sessions[sid] = datetime.now()
+            session["login_time"] = datetime.now().isoformat()
             return redirect(url_for("network"))
         error = "Incorrect password"
     return render_template("login.html", error=error)
@@ -111,25 +81,8 @@ def login():
 
 @app.route("/logout")
 def logout():
-    sid = session.get("session_id")
-    if sid:
-        with _sessions_lock:
-            _active_sessions.pop(sid, None)
     session.clear()
     return redirect(url_for("login"))
-
-
-@app.route("/api/heartbeat", methods=["POST"])
-def heartbeat():
-    """Browser calls this every 10 seconds to keep session alive"""
-    sid = session.get("session_id")
-    if not sid:
-        return jsonify({"status": "expired"})
-    with _sessions_lock:
-        if sid not in _active_sessions:
-            return jsonify({"status": "expired"})
-        _active_sessions[sid] = datetime.now()
-    return jsonify({"status": "ok"})
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
@@ -186,7 +139,10 @@ def settings():
         scheduler_running=scheduler_running,
         notifications_enabled=cfg.ENABLE_DESKTOP,
         auto_launch=cfg.AUTO_LAUNCH,
-        auto_launch_scheduler=cfg.AUTO_LAUNCH_SCHEDULER
+        auto_launch_scheduler=cfg.AUTO_LAUNCH_SCHEDULER,
+        stealth_mode=cfg.STEALTH_MODE,
+        stealth_timing=cfg.STEALTH_TIMING,
+        stealth_hostname=cfg.STEALTH_HOSTNAME
     )
 
 
@@ -195,7 +151,6 @@ def settings():
 @app.route("/api/scan", methods=["POST"])
 @login_required
 def trigger_scan():
-    """Start a scan in a background thread"""
     global scan_in_progress, scan_results_cache
     if scan_in_progress:
         return jsonify({"status": "error", "message": "Scan already in progress"})
@@ -208,11 +163,12 @@ def trigger_scan():
 
 
 def run_scan_thread():
-    """Runs the actual scan in the background"""
     global scan_in_progress, scan_results_cache
     try:
         from scanner import log_event
-        from config import SUDO_PASSWORD
+        from config import SUDO_PASSWORD, STEALTH_MODE
+
+        timeout = 1800 if STEALTH_MODE else 120
 
         result = subprocess.run(
             ["sudo", "-S", "venv/bin/python", "-c",
@@ -225,7 +181,7 @@ def run_scan_thread():
             input=f"{SUDO_PASSWORD}\n",
             capture_output=True,
             text=True,
-            timeout=120
+            timeout=timeout
         )
 
         if result.returncode != 0:
@@ -481,10 +437,47 @@ def disable_startup():
         return jsonify({"status": "error", "message": str(e)})
 
 
+@app.route("/api/stealth/toggle", methods=["POST"])
+@login_required
+def toggle_stealth():
+    try:
+        with open("config.py", "r") as f:
+            content = f.read()
+        current = "STEALTH_MODE = True" in content
+        new_state = not current
+        _update_config("STEALTH_MODE", new_state)
+        return jsonify({"status": "success", "stealth": new_state})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+
+@app.route("/api/stealth/status", methods=["GET"])
+@login_required
+def stealth_status():
+    try:
+        with open("config.py", "r") as f:
+            content = f.read()
+        stealth = "STEALTH_MODE = True" in content
+        return jsonify({"stealth": stealth})
+    except Exception:
+        return jsonify({"stealth": False})
+
+
+@app.route("/api/stealth/settings", methods=["POST"])
+@login_required
+def update_stealth_settings():
+    timing = request.json.get("timing", "T2")
+    hostname = request.json.get("hostname", "")
+    if timing not in ["T1", "T2", "T3"]:
+        return jsonify({"status": "error", "message": "Invalid timing"})
+    _update_config("STEALTH_TIMING", f'"{timing}"')
+    _update_config("STEALTH_HOSTNAME", f'"{hostname}"')
+    return jsonify({"status": "success"})
+
+
 # ── Startup helpers ───────────────────────────────────────────────────────────
 
 def _update_config(key, value):
-    """Update a key in config.py"""
     with open("config.py", "r") as f:
         lines = f.read().splitlines()
     for i, line in enumerate(lines):
@@ -515,7 +508,6 @@ def save_json(filepath, data):
 # ── Run ───────────────────────────────────────────────────────────────────────
 
 def free_port(port):
-    """Kill any process using the specified port"""
     try:
         result = subprocess.run(
             ["lsof", "-ti", f":{port}"],
