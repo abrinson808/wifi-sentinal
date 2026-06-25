@@ -22,7 +22,7 @@ SUDO_PASSWORD = "your_mac_login_password_here"
 AUTO_LAUNCH = False
 AUTO_LAUNCH_SCHEDULER = False
 
-#Stealth mode settings
+# Stealth mode settings
 STEALTH_MODE = False
 STEALTH_TIMING = "T2"  # Options: T1, T2, T3
-STEALTH_HOSTNAME = " "  # Set to a common device name like "iPhone" or "Android" to blend in with typical network traffic
+STEALTH_HOSTNAME = ""  # Set to a common device name like "iPhone" or "Android" to blend in with typical network traffic

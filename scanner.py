@@ -72,8 +72,8 @@ def flag_device(mac, info):
     with open("flagged_devices.json", "w") as f:
         json.dump(flagged, f, indent=4)
 
-    log_event(f"⛳ Device flagged as unrecognized: {mac} | {info.get('ip')} | {info.get('vendor', 'Unknown')} (seen {count} time(s))")
-    print("  ⛳ Flagged as unrecognized\n")
+    log_event(f"🚩 Device flagged as unrecognized: {mac} | {info.get('ip')} | {info.get('vendor', 'Unknown')} (seen {count} time(s))")
+    print("  🚩 Flagged as unrecognized\n")
 
 
 def log_event(message):
@@ -111,8 +111,8 @@ def generate_random_hostname():
     """Generate a convincing fake hostname"""
     import random
     prefixes = [
-        "Johns", "Sarah's", "Mike's", "Emily's", "David's",
-        "Jessica's", "Blake's", "Lauren's", "Matts", "Ashleys"
+        "John's", "Sarah's", "Mike's", "Emily's", "David's",
+        "Jessica's", "Blake's", "Lauren's", "Matt's", "Ashley's"
     ]
     suffixes = [
         "iPhone", "MacBook", "iPad", "MacBook-Pro",
@@ -193,6 +193,26 @@ def check_for_intruders(devices, whitelist):
             unknown[mac] = info
     return unknown
 
+def _prompt_device_identity(mac, info):
+    """Prompt the user to identify a single device and optionally label it.
+    Returns updated info dict if recognized, or None if the device was flagged."""
+    response = input("\n  Do you recognize this device? (y/n): ").strip().lower()
+
+    if response == "y":
+        current_vendor = info.get("vendor", "Unknown")
+        custom_vendor = input(f"  Vendor name (press Enter to keep '{current_vendor}'): ").strip()
+        device_name = input(f"  Device name (ex: iPhone, PS5, Smart TV — press Enter to skip): ").strip()
+
+        if custom_vendor:
+            info["vendor"] = custom_vendor
+        if device_name:
+            info["device_name"] = device_name
+
+        return info
+    else:
+        flag_device(mac, info)
+        return None
+
 def interactive_review(unknown):
     """Prompt the user to add unknown devices to the whitelist"""
     if not unknown:
@@ -206,24 +226,12 @@ def interactive_review(unknown):
         print(f"  MAC:         {mac}")
         print(f"  Vendor:      {info.get('vendor', 'Unknown')}")
 
-        response = input("\n  Do you recognize this device? (y/n): ").strip().lower()
-
-        if response == "y":
-            current_vendor = info.get("vendor", "Unknown")
-            custom_vendor = input(f"  Vendor name (press Enter to keep '{current_vendor}'): ").strip()
-            device_name = input(f"  Device name (ex: iPhone, PS5, Smart TV — press Enter to skip): ").strip()
-
-            if custom_vendor:
-                info["vendor"] = custom_vendor
-            if device_name:
-                info["device_name"] = device_name
-
-            whitelist[mac] = info
+        result = _prompt_device_identity(mac, info)
+        if result is not None:
+            whitelist[mac] = result
             save_whitelist(whitelist)
-            log_event(f"Device added to whitelist: {mac} | {info['ip']} | {info.get('vendor', 'Unknown')} | {info.get('device_name', 'Unknown')}")
+            log_event(f"Device added to whitelist: {mac} | {result['ip']} | {result.get('vendor', 'Unknown')} | {result.get('device_name', 'Unknown')}")
             print("  ✅ Added!\n")
-        else:
-            flag_device(mac, info)
 
 def build_whitelist_from_scan():
     """First-run setup — scan and approve all current devices as known"""
@@ -247,21 +255,9 @@ def build_whitelist_from_scan():
     for mac, info in devices.items():
         print(f"  IP: {info['ip']:<16} MAC: {mac:<20} Vendor: {info.get('vendor', 'Unknown')}")
 
-        recognized = input("  Do you recognize this device? (y/n): ").strip().lower()
-
-        if recognized == "y":
-            current_vendor = info.get("vendor", "Unknown")
-            custom_vendor = input(f"  Vendor name (press Enter to keep '{current_vendor}'): ").strip()
-            device_name = input(f"  Device name (ex: iPhone, PS5, Smart TV — press Enter to skip): ").strip()
-
-            if custom_vendor:
-                info["vendor"] = custom_vendor
-            if device_name:
-                info["device_name"] = device_name
-
-            trusted[mac] = info
-        else:
-            flag_device(mac, info)
+        result = _prompt_device_identity(mac, info)
+        if result is not None:
+            trusted[mac] = result
 
         print()
 

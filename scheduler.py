@@ -8,7 +8,7 @@ def job():
     run_scan()
     
 def start_scheduler():
-    print(f"🚀 Wifi Sentinel is running - scanning every {SCAN_INTERVAL} minutes.")
+    print(f"🚀 WiFi Sentinel is running - scanning every {SCAN_INTERVAL} minutes.")
     print("Press Ctrl+C to stop.\n")
 
     job() 
