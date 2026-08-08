@@ -1,7 +1,12 @@
 # dashboard.py — WiFi Sentinel web dashboard
+import sys
+import os
+
+_venv_python = os.path.join(os.path.dirname(os.path.abspath(__file__)), "venv", "bin", "python")
+if os.path.exists(_venv_python) and sys.executable != _venv_python:
+    os.execv(_venv_python, [_venv_python] + sys.argv)
 
 import json
-import os
 import signal
 import subprocess
 import threading
