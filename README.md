@@ -13,17 +13,20 @@ my home network and realizing I had no way of knowing when new devices connected
 - 🔍 Scans your entire home network using nmap
 - 📋 Maintains a whitelist of trusted devices
 - 🔔 Cross-platform desktop notifications (macOS, Windows, Linux)
+- 📱 SMS alerts via Twilio
 - 🏭 Automatic MAC vendor lookup to identify device manufacturers
 - 🧑‍💻 Interactive mode to review and name unknown devices on the spot
 - 🚩 Flags unrecognized devices with repeat offender tracking
 - 📝 Logs all scan activity with timestamps
 - ⏰ Runs automatically in the background on a configurable schedule
 - 🛠️ Setup wizard that works on any OS
-- 🔐 Password protected web dashboard
+- 🌐 Password protected web dashboard
 - ⚙️ Dashboard settings to control scheduler, scan interval, and notifications
 - 💾 Scan results persist across page navigation
-- 🔒 Session expires upon tab closure or disconnection
+- 🔒 Session expires on server restart and after 15 minutes of inactivity
 - 🚀 Single command launch script for all platforms
+- 👁️‍🗨️ Stealth mode with configurable nmap timing and hostname masking
+- 🔄 Auto-detects virtual environment — no manual activation required
 
 ---
 
@@ -42,6 +45,8 @@ my home network and realizing I had no way of knowing when new devices connected
 - Python 3.8+
 - [python-nmap](https://pypi.org/project/python-nmap/) — network scanning
 - [plyer](https://pypi.org/project/plyer/) — cross-platform desktop notifications
+- [twilio](https://pypi.org/project/twilio/) — SMS alerts
+- [Flask](https://pypi.org/project/Flask/) + [Flask-Session](https://pypi.org/project/Flask-Session/) — web dashboard
 - [schedule](https://pypi.org/project/schedule/) — job scheduling
 - [certifi](https://pypi.org/project/certifi/) — SSL certificate handling
 - [macvendors.com](https://macvendors.com/) — MAC address vendor lookup
@@ -78,71 +83,56 @@ cd wifi-sentinel
 ### 3. Create a virtual environment
 
 **macOS/Linux:**
-
 ```bash
 python3 -m venv venv
-source venv/bin/activate
 ```
 
 **Windows:**
-
 ```bash
 python -m venv venv
-venv\Scripts\activate
 ```
 
 ### 4. Run the setup wizard
-
 ```bash
-python setup.py
+python3 setup.py
 ```
 
-This will install all dependencies and create your config file automatically.
+The setup wizard installs all dependencies automatically. You never need to activate the virtual environment manually — all scripts handle that for you.
 
 ### 5. Configure
-
 Open `config.py` and set your network range:
 
-**macOS:**
-
-```bash
-ipconfig getifaddr en0
-```
-
-**Windows:**
-
-```bash
-ipconfig
-```
-
-**Linux:**
-
-```bash
-ip addr
-```
+**macOS:** `ipconfig getifaddr en0`
+**Windows:** `ipconfig`
+**Linux:** `ip addr`
 
 ### 6. Run
 
 **macOS/Linux:**
-
 ```bash
 ./start.sh
 ```
 
 **Windows:**
-
-```batch
+```bash
 start.bat
 ```
 
-This will start the dashboard, open your browser automatically, and start the scheduler if enabled in settings.
+Or run individual components directly:
 
-Then open your browser and go to:
-
+**macOS/Linux:**
+```bash
+sudo python3 scanner.py --interactive
+python3 dashboard.py
+sudo python3 scheduler.py
 ```
-http://localhost:5001
-```
 
+**Windows (Command Prompt as Administrator):**
+```bash
+python scanner.py --interactive
+python dashboard.py
+python scheduler.py
+```
 ---
 
 ## First Run
@@ -209,7 +199,7 @@ venv\Scripts\python scheduler.py
 ```
 wifi-sentinel/
 ├── scanner.py              # core scanning, vendor lookup, interactive flow
-├── notifier.py             # cross-platform desktop alerts
+├── notifier.py             # cross-platform desktop alerts and SMS alerts via Twilio
 ├── scheduler.py            # automatic scheduling
 ├── dashboard.py            # Flask web dashboard
 ├── setup.py                # first-run setup wizard
@@ -243,10 +233,12 @@ wifi-sentinel/
 - [x] Web dashboard with live network, history, and flagged devices
 - [x] Dashboard settings with scheduler controls and notification toggle
 - [x] Scan results persistence across navigation
-- [x] Session security with heartbeat expiry
+- [x] Session security with server restart invalidation
 - [x] Single command launch script
+- [x] Stealth mode with configurable timing and hostname masking
+- [x] Auto-detects virtual environment
+- [x] SMS alerts via Twilio
 - [ ] Email alerts via Gmail SMTP
-
 ---
 
 ## Author
