@@ -171,7 +171,11 @@ def run_scan_thread():
     global scan_in_progress, scan_results_cache
     try:
         from scanner import log_event
-        from config import SUDO_PASSWORD, STEALTH_MODE
+        from config import SUDO_PASSWORD
+        import importlib
+        import config as cfg
+        importlib.reload(cfg)
+        STEALTH_MODE = cfg.STEALTH_MODE
 
         timeout = 1800 if STEALTH_MODE else 120
 
